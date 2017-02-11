@@ -1,0 +1,56 @@
+@include "_assembler_prep.mro"
+@include "_preflight_stages.mro"
+
+pipeline ASSEMBLER_CS(
+    in  string sample_id,
+    in  string fastq_mode                   "configuration of the input fastqs",
+    in  map[]  sample_def,
+    in  string sample_desc,
+    in  map    downsample,
+    out path   assembly,
+    out csv    summary,
+)
+{
+    # remember that bardcode_whitelist is currently
+    # in two spots
+    call preflight ASSEMBLER_CS_PREFLIGHT(
+        input_mode        = self.fastq_mode,
+        sample_def        = self.sample_def,
+        barcode_whitelist = "4M-with-alts-february-2016",
+        downsample        = self.downsample,
+    )
+
+    call _ASSEMBLER_PREP(
+        sample_id                   = self.sample_id,
+        fastq_mode                  = self.fastq_mode,
+        sample_def                  = self.sample_def,
+        barcode_whitelist           = "4M-with-alts-february-2016",
+        trim_length                 = 7,
+        max_expected_barcode_errors = 1.0,
+        downsample                  = self.downsample,
+    )
+
+    call _ASSEMBLER_DF(
+        sample_id                   = self.sample_id,
+        sample_desc                 = self.sample_desc,
+        reads                       = _ASSEMBLER_PREP.reads,
+        quals                       = _ASSEMBLER_PREP.quals,
+        bci                         = _ASSEMBLER_PREP.bci,
+        downsample                  = self.downsample,
+        addin                       = null,
+        pipeline_id                 = null,
+        known_sample_id             = null,
+    )
+
+    call _ASSEMBLER_CP(
+        sample_id                   = self.sample_id,
+        sample_desc                 = self.sample_desc,
+        parent_dir                  = _ASSEMBLER_DF,
+        known_sample_id             = null,
+    )
+
+    return (
+        assembly      = _ASSEMBLER_CP,
+        summary       = _ASSEMBLER_CP.summary_cs,
+    )
+}
